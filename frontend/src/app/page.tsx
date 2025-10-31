@@ -230,9 +230,9 @@ export default function Home() {
           </div>
           <div className="mt-8 grid sm:grid-cols-2 md:grid-cols-3 gap-6">
             {[ 
-              { id: 1, name: "Membre 1", role: "Ingénieur IA", spec: "Vision par ordinateur", img: "https://res.cloudinary.com/dqybzf7bu/image/upload/v1761610805/WhatsApp_Image_2025-04-09_at_00.48.51_aqkq9a.jpg", linkedin: "https://www.linkedin.com/in/membre1", github: "https://github.com/membre1" },
-              { id: 2, name: "Membre 2", role: "Data Engineer", spec: "Pipelines & Big Data", img: "https://res.cloudinary.com/dqybzf7bu/image/upload/v1761610805/WhatsApp_Image_2025-04-09_at_00.48.51_aqkq9a.jpg", linkedin: "https://www.linkedin.com/in/membre2", github: "https://github.com/membre2" },
-              { id: 3, name: "Membre 3", role: "Full‑stack", spec: "Front & API", img: "https://res.cloudinary.com/dqybzf7bu/image/upload/v1761610805/WhatsApp_Image_2025-04-09_at_00.48.51_aqkq9a.jpg", linkedin: "https://www.linkedin.com/in/membre3", github: "https://github.com/membre3" },
+              { id: 1, name: "Kiboyou Mohamed OUATTARA", role: "Etudiant en Machine Learning", spec: "AI / Front & API ", img: "https://res.cloudinary.com/dqybzf7bu/image/upload/v1761610805/WhatsApp_Image_2025-04-09_at_00.48.51_aqkq9a.jpg", linkedin: "https://www.linkedin.com/in/kiboyou-mohamed-ouattara-4131bb220/", github: "https://github.com/kiboyou" },
+              { id: 2, name: "Jean Christian AHIKPA", role: "Etudiant en IA Engineer", spec: "Vision par ordinateur ", img: "https://res.cloudinary.com/dqybzf7bu/image/upload/v1761768905/Jean_Christian_AHIKPA_SummerCamp2025_Talan_rw26is.jpg", linkedin: "https://www.linkedin.com/in/jean-christian-ahikpa/", github: "https://github.com/ahikpa" },
+              { id: 3, name: "Acobe ange BONI", role: "Etudiant en Data Engineer", spec: "Pipelines & Big Data", img: "https://res.cloudinary.com/dqybzf7bu/image/upload/v1761769425/A_252_dbbpuh.jpg", linkedin: "https://www.linkedin.com/in/acobe-ange-ulrich-boni/", github: "https://github.com/membre3" },
             ].map((m, idx) => (
               <Reveal key={m.id} delay={idx * 80}>
                 <article className="group rounded-3xl border border-black/5 bg-white/70 backdrop-blur-sm shadow-sm hover:shadow-md transition-all">
