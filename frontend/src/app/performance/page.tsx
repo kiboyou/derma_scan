@@ -1,39 +1,56 @@
 "use client";
 
-import ProgressBar from "@/components/ProgressBar";
 import Reveal from "@/components/Reveal";
-import { Fragment, useMemo } from "react";
+import { Fragment, useEffect, useState } from "react";
+
+type PerfMetrics = {
+	auc: number;
+	accuracy: number;
+	f1: number;
+	latency_ms: number;
+	classes: string[];
+	cm: number[][];
+	roc: [number, number][];
+	pr: [number, number][];
+	loss: number[];
+	acc: number[];
+	// Optionnel : tableau de modèles pour la comparaison
+	models?: Array<{
+		name: string;
+		accuracy: number;
+		precision: number;
+		recall: number;
+		f1: number;
+	}>;
+};
 
 export default function PerformancePage() {
-	const models = [
-		{ name: "CNN-Base", accuracy: 0.82, precision: 0.8, recall: 0.78, f1: 0.79 },
-		{ name: "EfficientNet-B0", accuracy: 0.87, precision: 0.85, recall: 0.84, f1: 0.84 },
-		{ name: "ResNet50", accuracy: 0.85, precision: 0.83, recall: 0.82, f1: 0.82 },
-	];
+	const [perf, setPerf] = useState<PerfMetrics | null>(null);
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
-	// Example performance snapshot (static demo data)
-	const perf = useMemo(
-		() => ({
-			auc: 0.94,
-			accuracy: 0.91,
-			f1: 0.9,
-			latency_ms: 142,
-			classes: ["Bénin", "Malin"],
-			cm: [
-				[82, 6],
-				[7, 65],
-			],
-			roc: [
-				[0, 0], [0.05, 0.35], [0.12, 0.62], [0.22, 0.78], [0.35, 0.86], [0.5, 0.92], [0.7, 0.95], [1, 1],
-			],
-			pr: [
-				[0, 1], [0.1, 0.92], [0.3, 0.88], [0.5, 0.83], [0.7, 0.78], [0.9, 0.7], [1, 0.65],
-			],
-			loss: [0.68, 0.54, 0.43, 0.36, 0.31, 0.28, 0.26, 0.25],
-			acc: [0.62, 0.71, 0.78, 0.83, 0.86, 0.88, 0.9, 0.91],
-		}),
-		[]
-	);
+	// Modèles dynamiques si présents dans l'API, sinon fallback statique
+	const models = perf?.models && perf.models.length > 0
+		? perf.models
+		: [
+				{ name: "CNN-Base", accuracy: 0.82, precision: 0.8, recall: 0.78, f1: 0.79 },
+				{ name: "EfficientNet-B0", accuracy: 0.87, precision: 0.85, recall: 0.84, f1: 0.84 },
+				{ name: "ResNet50", accuracy: 0.85, precision: 0.83, recall: 0.82, f1: 0.82 },
+			];
+
+	useEffect(() => {
+		setLoading(true);
+		setError(null);
+		fetch(`${apiBase}/metrics`)
+			.then((r) => {
+				if (!r.ok) throw new Error(`HTTP ${r.status}`);
+				return r.json();
+			})
+			.then((data) => setPerf(data))
+			.catch((e) => setError(e.message || "Erreur de chargement des métriques"))
+			.finally(() => setLoading(false));
+	}, [apiBase]);
 
 	return (
 		<section className="section section-soft-bg">
@@ -48,139 +65,157 @@ export default function PerformancePage() {
 				</div>
 
 				{/* KPI cards */}
-				<div className="mt-8 kpi-grid">
-					<Reveal>
-						<div className="kpi-card">
-							<div className="kpi-label">ROC‑AUC</div>
-							<div className="kpi-value">{(perf.auc * 100).toFixed(1)}%</div>
-							<div className="kpi-sub">Surface sous la courbe</div>
-						</div>
-					</Reveal>
-					<Reveal delay={80}>
-						<div className="kpi-card">
-							<div className="kpi-label">Accuracy</div>
-							<div className="kpi-value">{(perf.accuracy * 100).toFixed(1)}%</div>
-							<div className="kpi-sub">Exactitude globale</div>
-						</div>
-					</Reveal>
-					<Reveal delay={120}>
-						<div className="kpi-card">
-							<div className="kpi-label">F1‑Score</div>
-							<div className="kpi-value">{(perf.f1 * 100).toFixed(1)}%</div>
-							<div className="kpi-sub">Harmonique Précision/Rappel</div>
-						</div>
-					</Reveal>
-					<Reveal delay={160}>
-						<div className="kpi-card">
-							<div className="kpi-label">Latence</div>
-							<div className="kpi-value">{perf.latency_ms} ms</div>
-							<div className="kpi-sub">Temps d'inférence</div>
-						</div>
-					</Reveal>
-				</div>
+								<div className="mt-8 kpi-grid">
+									{loading ? (
+										<div className="kpi-card col-span-4 text-center">Chargement des métriques...</div>
+									) : error ? (
+										<div className="kpi-card col-span-4 text-center text-red-600">{error}</div>
+									) : perf ? (
+										<>
+											<Reveal>
+												<div className="kpi-card">
+													<div className="kpi-label">ROC‑AUC</div>
+													<div className="kpi-value">{(perf.auc * 100).toFixed(1)}%</div>
+													<div className="kpi-sub">Surface sous la courbe</div>
+												</div>
+											</Reveal>
+											<Reveal delay={80}>
+												<div className="kpi-card">
+													<div className="kpi-label">Accuracy</div>
+													<div className="kpi-value">{(perf.accuracy * 100).toFixed(1)}%</div>
+													<div className="kpi-sub">Exactitude globale</div>
+												</div>
+											</Reveal>
+											<Reveal delay={120}>
+												<div className="kpi-card">
+													<div className="kpi-label">F1‑Score</div>
+													<div className="kpi-value">{(perf.f1 * 100).toFixed(1)}%</div>
+													<div className="kpi-sub">Harmonique Précision/Rappel</div>
+												</div>
+											</Reveal>
+											<Reveal delay={160}>
+												<div className="kpi-card">
+													<div className="kpi-label">Latence</div>
+													<div className="kpi-value">{perf.latency_ms} ms</div>
+													<div className="kpi-sub">Temps d'inférence</div>
+												</div>
+											</Reveal>
+										</>
+									) : null}
+								</div>
 
 				{/* Charts row 1: ROC + Confusion Matrix */}
-				<div className="mt-8 grid md:grid-cols-2 gap-6">
-					<Reveal>
-						<div className="chart-card">
-							<div className="chart-title">Courbe ROC</div>
-							  <RocChart points={perf.roc as [number, number][]} />
-							<div className="legend">
-								<span className="dot dot-primary" /> Modèle
-								<span className="sep" /> Diagonale aléatoire
-							</div>
-						</div>
-					</Reveal>
-					<Reveal delay={80}>
-						<div className="chart-card">
-							<div className="chart-title">Matrice de confusion</div>
-							<ConfusionMatrix cm={perf.cm} labels={perf.classes} />
-						</div>
-					</Reveal>
-				</div>
+								<div className="mt-8 grid md:grid-cols-2 gap-6">
+									{perf && !loading && !error ? (
+										<>
+											<Reveal>
+												<div className="chart-card">
+													<div className="chart-title">Courbe ROC</div>
+													<RocChart points={perf.roc as [number, number][]} />
+													<div className="legend">
+														<span className="dot dot-primary" /> Modèle
+														<span className="sep" /> Diagonale aléatoire
+													</div>
+												</div>
+											</Reveal>
+											<Reveal delay={80}>
+												<div className="chart-card">
+													<div className="chart-title">Matrice de confusion</div>
+													<ConfusionMatrix cm={perf.cm} labels={perf.classes} />
+												</div>
+											</Reveal>
+										</>
+									) : null}
+								</div>
 
 				{/* Charts row 2: Loss/Accuracy + PR */}
-				<div className="mt-6 grid md:grid-cols-2 gap-6">
-					<Reveal>
-						<div className="chart-card">
-							<div className="chart-title">Entraînement: Perte & Accuracy</div>
-							<TrainCurves loss={perf.loss} acc={perf.acc} />
-							<div className="legend">
-								<span className="dot dot-secondary" /> Loss
-								<span className="sep" />
-								<span className="dot dot-primary" /> Accuracy
-							</div>
-						</div>
-					</Reveal>
-					<Reveal delay={80}>
-						<div className="chart-card">
-							<div className="chart-title">Courbe Précision‑Rappel</div>
-							  <PrChart points={perf.pr as [number, number][]} />
-							<div className="legend">
-								<span className="dot dot-primary" /> Modèle
-							</div>
-						</div>
-					</Reveal>
-				</div>
+								<div className="mt-6 grid md:grid-cols-2 gap-6">
+									{perf && !loading && !error ? (
+										<>
+											<Reveal>
+												<div className="chart-card">
+													<div className="chart-title">Entraînement: Perte & Accuracy</div>
+													<TrainCurves loss={perf.loss} acc={perf.acc} />
+													<div className="legend">
+														<span className="dot dot-secondary" /> Loss
+														<span className="sep" />
+														<span className="dot dot-primary" /> Accuracy
+													</div>
+												</div>
+											</Reveal>
+											<Reveal delay={80}>
+												<div className="chart-card">
+													<div className="chart-title">Courbe Précision‑Rappel</div>
+													<PrChart points={perf.pr as [number, number][]} />
+													<div className="legend">
+														<span className="dot dot-primary" /> Modèle
+													</div>
+												</div>
+											</Reveal>
+										</>
+									) : null}
+								</div>
 
 				{/* Model comparison table */}
-				<Reveal>
-					<div className="mt-10 card">
-						<h2 className="font-semibold text-lg">Comparaison des modèles</h2>
-						{(() => {
-							const best = {
-								accuracy: Math.max(...models.map((m) => m.accuracy)),
-								precision: Math.max(...models.map((m) => m.precision)),
-								recall: Math.max(...models.map((m) => m.recall)),
-								f1: Math.max(...models.map((m) => m.f1)),
-							};
-							return (
-								<div className="mt-4 overflow-x-auto table-premium">
-									<table className="w-full text-left text-sm">
-										<thead>
-											<tr>
-												<th>Modèle</th>
-												<th>Accuracy</th>
-												<th>Precision</th>
-												<th>Recall</th>
-												<th>F1</th>
-											</tr>
-										</thead>
-										<tbody>
-											{models.map((m) => (
-												<tr key={m.name}>
-													<td className="name-cell">
-														<span className="model-name">{m.name}</span>
-														{m.f1 === best.f1 && (
-															<span className="badge-best" title="Meilleur F1">
-																<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-																	<path d="M3 11l4-7 5 9 5-9 4 7" />
-																</svg>
-																Top
-															</span>
-														)}
-													</td>
-													{([m.accuracy, m.precision, m.recall, m.f1] as const).map((v, i) => {
-														const isBest =
-															i === 0 ? v === best.accuracy : i === 1 ? v === best.precision : i === 2 ? v === best.recall : v === best.f1;
-														const color = i === 0 ? "var(--color-primary)" : i === 1 ? "var(--color-secondary)" : i === 2 ? "var(--color-accent)" : "#6366F1";
-														return (
-															<td key={i} className={isBest ? "cell-best" : undefined}>
-																<ProgressBar percent={v * 100} color={color} />
-																<span className="metric-chip">{Math.round(v * 100)}%</span>
-															</td>
-														);
-													})}
-												</tr>
-											))}
-										</tbody>
-									</table>
-								</div>
-							);
-						})()}
-						<p className="mt-4 text-xs text-slate-500">Remarque: Connectez cette page à vos métriques réelles (p.ex., export MLflow) lorsque disponibles.</p>
-					</div>
-				</Reveal>
+								{/*
+								<Reveal>
+									<div className="mt-10 card">
+										<h2 className="font-semibold text-lg">Comparaison des modèles</h2>
+										{models.length > 0 ? (() => {
+											const best = {
+												accuracy: Math.max(...models.map((m) => m.accuracy)),
+												precision: Math.max(...models.map((m) => m.precision)),
+												recall: Math.max(...models.map((m) => m.recall)),
+												f1: Math.max(...models.map((m) => m.f1)),
+											};
+											return (
+												<div className="mt-4 overflow-x-auto table-premium">
+													<table className="w-full text-left text-sm">
+														<thead>
+															<tr>
+																<th>Modèle</th>
+																<th>Accuracy</th>
+																<th>Precision</th>
+																<th>Recall</th>
+																<th>F1</th>
+															</tr>
+														</thead>
+														<tbody>
+															{models.map((m) => (
+																<tr key={m.name}>
+																	<td className="name-cell">
+																		<span className="model-name">{m.name}</span>
+																		{m.f1 === best.f1 && (
+																			<span className="badge-best" title="Meilleur F1">
+																				<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+																					<path d="M3 11l4-7 5 9 5-9 4 7" />
+																				</svg>
+																				Top
+																			</span>
+																		)}
+																	</td>
+																	{([m.accuracy, m.precision, m.recall, m.f1] as const).map((v, i) => {
+																		const isBest =
+																			i === 0 ? v === best.accuracy : i === 1 ? v === best.precision : i === 2 ? v === best.recall : v === best.f1;
+																		const color = i === 0 ? "var(--color-primary)" : i === 1 ? "var(--color-secondary)" : i === 2 ? "var(--color-accent)" : "#6366F1";
+																		return (
+																			<td key={i} className={isBest ? "cell-best" : undefined}>
+																				<ProgressBar percent={v * 100} color={color} />
+																				<span className="metric-chip">{Math.round(v * 100)}%</span>
+																			</td>
+																		);
+																	})}
+																</tr>
+															))}
+														</tbody>
+													</table>
+												</div>
+											);
+										})() : <div className="mt-4 text-center text-slate-500">Aucun modèle à comparer.</div>}
+										<p className="mt-4 text-xs text-slate-500">Remarque: Les données sont dynamiques si disponibles depuis l'API.</p>
+									</div>
+								</Reveal>
+								*/}
 			</div>
 		</section>
 	);

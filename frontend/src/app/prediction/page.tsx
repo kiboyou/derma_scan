@@ -15,6 +15,7 @@ type PredictResponse = {
 	[key: string]: unknown;
 };
 
+
 export default function PredictionPage() {
 	const [file, setFile] = useState<File | null>(null);
 	const [preview, setPreview] = useState<string | null>(null);
@@ -23,22 +24,19 @@ export default function PredictionPage() {
 	const [uploadProgress, setUploadProgress] = useState<number>(0);
 	const [dragging, setDragging] = useState(false);
 	const [result, setResult] = useState<PredictResponse | null>(null);
+	// Analyse qualité image (netteté, contraste, luminosité, centrage)
+	const [imgQuality, setImgQuality] = useState<null | {
+		sharp: boolean;
+		contrast: boolean;
+		bright: boolean;
+		centered: boolean;
+	}>(null);
 
-	const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+	// Utilise le proxy Next.js en dev (voir next.config.ts)
+	const apiBase = "/api";
 
 	// Stable example template to showcase expected result structure (no dynamic time to avoid SSR/client mismatch)
-	const example = {
-		label: "Suspicion mélanome",
-		confidence: 0.87,
-		topK: [
-			{ label: "Malin", prob: 0.87 },
-			{ label: "Bénin", prob: 0.13 },
-		],
-		model: "EfficientNet-B0",
-		inference_ms: 142,
-		// Use a fixed timestamp string for SSR stability
-		timestamp: "2025-10-27T20:49:00Z",
-	} as const;
+	// Plus d'exemple statique, tout est dynamique
 
 	// Format a UTC timestamp into a French-like string without locale/timezone variability
 	const formatUTC = (iso: string) => {
@@ -54,15 +52,110 @@ export default function PredictionPage() {
 	};
 
 	const onFile = useCallback((f: File | null) => {
-		setError(null);
-		setResult(null);
-		setFile(f);
-		if (f) {
-			const url = URL.createObjectURL(f);
-			setPreview(url);
-		} else {
-			setPreview(null);
-		}
+			setError(null);
+			setResult(null);
+			setFile(f);
+			setImgQuality(null);
+			if (f) {
+					const url = URL.createObjectURL(f);
+					setPreview(url);
+					// Analyse qualité image après chargement
+					const img = new window.Image();
+					img.onload = () => {
+						try {
+							const canvas = document.createElement("canvas");
+							canvas.width = img.width;
+							canvas.height = img.height;
+							const ctx = canvas.getContext("2d");
+							if (!ctx) return;
+							ctx.drawImage(img, 0, 0);
+							const data = ctx.getImageData(0, 0, img.width, img.height);
+							// Nette: variance du gradient (Sobel)
+							let sharp = false;
+							try {
+								let gx = 0, gy = 0, count = 0;
+								for (let y = 1; y < img.height - 1; y += 10) {
+									for (let x = 1; x < img.width - 1; x += 10) {
+										const i = (y * img.width + x) * 4;
+										const sobelX = (
+											-1 * data.data[i - 4 - img.width * 4] +
+											1 * data.data[i + 4 - img.width * 4] +
+											-2 * data.data[i - 4] +
+											2 * data.data[i + 4] +
+											-1 * data.data[i - 4 + img.width * 4] +
+											1 * data.data[i + 4 + img.width * 4]
+										);
+										const sobelY = (
+											-1 * data.data[i - 4 - img.width * 4] +
+											-2 * data.data[i - img.width * 4] +
+											-1 * data.data[i + 4 - img.width * 4] +
+											1 * data.data[i - 4 + img.width * 4] +
+											2 * data.data[i + img.width * 4] +
+											1 * data.data[i + 4 + img.width * 4]
+										);
+										gx += Math.abs(sobelX);
+										gy += Math.abs(sobelY);
+										count++;
+									}
+								}
+								const grad = (gx + gy) / (count || 1);
+								sharp = grad > 1000; // seuil empirique
+							} catch {}
+							// Contraste: stddev des valeurs RGB
+							let contrast = false;
+							try {
+								let sum = 0, sum2 = 0, n = 0;
+								for (let i = 0; i < data.data.length; i += 4 * 100) {
+									const v = 0.299 * data.data[i] + 0.587 * data.data[i + 1] + 0.114 * data.data[i + 2];
+									sum += v;
+									sum2 += v * v;
+									n++;
+								}
+								const mean = sum / n;
+								const std = Math.sqrt(sum2 / n - mean * mean);
+								contrast = std > 40;
+							} catch {}
+							// Luminosité: moyenne RGB
+							let bright = false;
+							try {
+								let sum = 0, n = 0;
+								for (let i = 0; i < data.data.length; i += 4 * 100) {
+									const v = 0.299 * data.data[i] + 0.587 * data.data[i + 1] + 0.114 * data.data[i + 2];
+									sum += v;
+									n++;
+								}
+								const mean = sum / n;
+								bright = mean > 60 && mean < 220;
+							} catch {}
+							// Centrage: barycentre des pixels sombres
+							let centered = false;
+							try {
+								let cx = 0, cy = 0, n = 0;
+								for (let y = 0; y < img.height; y += 10) {
+									for (let x = 0; x < img.width; x += 10) {
+										const i = (y * img.width + x) * 4;
+										const v = 0.299 * data.data[i] + 0.587 * data.data[i + 1] + 0.114 * data.data[i + 2];
+										if (v < 100) { // sombre
+											cx += x;
+											cy += y;
+											n++;
+										}
+									}
+								}
+								if (n > 0) {
+									cx /= n;
+									cy /= n;
+									centered = Math.abs(cx - img.width / 2) < img.width / 5 && Math.abs(cy - img.height / 2) < img.height / 5;
+								}
+							} catch {}
+							setImgQuality({ sharp, contrast, bright, centered });
+						} catch {}
+					};
+					img.src = url;
+			} else {
+					setPreview(null);
+					setImgQuality(null);
+			}
 	}, []);
 
 	const onDrop = useCallback(
@@ -289,10 +382,22 @@ export default function PredictionPage() {
 									<li>• Ce modèle est un outil d'aide — il ne remplace pas un avis clinique.</li>
 								</ul>
 								<div className="mt-6 sample-grid">
-									{["Zone nette", "Couleurs contrastées", "Bonne lumière", "Focus sur la lésion"].map((t) => (
-										<div key={t} className="p-3 rounded-lg border border-black/5 bg-white">
+									{[
+										{ label: "Zone nette", key: "sharp" },
+										{ label: "Couleurs contrastées", key: "contrast" },
+										{ label: "Bonne lumière", key: "bright" },
+										{ label: "Focus sur la lésion", key: "centered" },
+									].map((item) => (
+										<div key={item.label} className={`p-3 rounded-lg border ${imgQuality ? (imgQuality[item.key as keyof typeof imgQuality] ? 'border-green-400 bg-green-50' : 'border-red-300 bg-red-50') : 'border-black/5 bg-white'}`}>
 											<div className="example-thumb rounded-md mb-2" />
-											<div className="text-sm text-slate-700">{t}</div>
+											<div className="text-sm text-slate-700 flex items-center gap-2">
+												{item.label}
+												{imgQuality && (
+													imgQuality[item.key as keyof typeof imgQuality]
+														? <span title="OK" style={{color:'#16a34a'}}>✔️</span>
+														: <span title="À améliorer" style={{color:'#dc2626'}}>✖️</span>
+												)}
+											</div>
 										</div>
 									))}
 								</div>
@@ -311,175 +416,116 @@ export default function PredictionPage() {
 						<div className="title-underline" />
 					</div>
 
-					<div className="mt-6">
-						{result ? (
-											<Reveal>
-												<div className="result-card typography-bump">
-									<div className="flex items-center justify-between">
-										<div className="font-semibold">Sortie du modèle</div>
-										{result?.label && <span className="chip-label">{String(result.label)}</span>}
-									</div>
-
-									{typeof result?.confidence === "number" && (
-										<div className="mt-2">
-											<div className="progress" style={{ background: "#e2e8f0" }}>
-												<div
-													className="bar"
-													style={{ width: `${Math.round((result.confidence as number) * 100)}%`, background: "var(--color-primary)" }}
-												/>
-											</div>
-											<div className="mt-1 text-xs text-slate-600">{Math.round((result.confidence as number) * 100)}%</div>
-										</div>
-									)}
-
-																													{(result?.model || result?.inference_ms || result?.timestamp) && (
-																														<div className="mt-4 meta-grid meta-col">
-																															{result?.model && (
-																																<div className="meta-item meta-item--pro">
-																																	<span className="icon-badge" aria-hidden>
-																																		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12h18"/><path d="M3 6h18"/><path d="M3 18h18"/></svg>
-																																	</span>
-																																	<div className="flex-1 min-w-0">
-																																		<div className="k">Modèle</div>
-																																		<div className="v">{String(result.model)}</div>
-																																	</div>
-																																	<button className="icon-ghost" title="Copier" onClick={() => copyToClipboard(String(result.model))}>
-																																		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-																																	</button>
-																																</div>
-																															)}
-																															{typeof result?.inference_ms === "number" && (
-																																<div className="meta-item meta-item--pro">
-																																	<span className="icon-badge" aria-hidden>
-																																		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-																																	</span>
-																																	<div className="flex-1 min-w-0">
-																																		<div className="k">Inférence</div>
-																																		<div className="v v-mono">{result.inference_ms} ms</div>
-																																	</div>
-																																	<button className="icon-ghost" title="Copier" onClick={() => copyToClipboard(`${result.inference_ms} ms`)}>
-																																		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-																																	</button>
-																																</div>
-																															)}
-																															{result?.timestamp && (
-																																<div className="meta-item meta-item--pro">
-																																	<span className="icon-badge" aria-hidden>
-																																		<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>
-																																	</span>
-																																	<div className="flex-1 min-w-0">
-																																		<div className="k">Date</div>
-																																		<div className="v v-mono">{formatUTC(result.timestamp)}</div>
-																																	</div>
-																																	<button className="icon-ghost" title="Copier" onClick={() => copyToClipboard(formatUTC(result.timestamp!))}>
-																																		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-																																	</button>
-																																</div>
-																															)}
-																														</div>
-																													)}
-
-									<details className="mt-3">
-										<summary className="cursor-pointer text-sm text-slate-600">Détails bruts</summary>
-										<pre className="mt-2 text-xs overflow-auto">{JSON.stringify(result, null, 2)}</pre>
-									</details>
-
-									<div className="mt-4 card">
-										<div className="font-semibold">Conseils & Explications</div>
-										<ul className="note-list text-sm">
-											<li>Ce résultat est un indicateur, pas un diagnostic médical.</li>
-											<li>Si la confiance est faible (&lt; 70%), refaites une photo nette et bien éclairée.</li>
-											<li>En cas de doute clinique, consultez un dermatologue.</li>
-										</ul>
-									</div>
-								</div>
-							</Reveal>
-						) : (
-											<Reveal>
-												<div className="result-card typography-bump">
-									<div className="flex items-center justify-between">
-										<div className="font-semibold">Sortie du modèle (exemple)</div>
-										<span className="chip-label">{example.label}</span>
-									</div>
-									<div className="mt-2">
-										<div className="progress" style={{ background: "#e2e8f0" }}>
-											<div className="bar" style={{ width: `${Math.round(example.confidence * 100)}%`, background: "var(--color-primary)" }} />
-										</div>
-										<div className="mt-1 text-xs text-slate-600">Confiance: {Math.round(example.confidence * 100)}%</div>
-									</div>
-
-									{/* Top-K + Metadata as tiles */}
-									  <div className="mt-4 grid sm:grid-cols-2 gap-4">
-										<div>
-											<div className="text-sm font-medium">Top‑K</div>
-											<div className="mt-2 space-y-2">
-												{example.topK.map((k) => (
-													<div key={k.label}>
-														<div className="flex items-center justify-between text-sm">
-															<span>{k.label}</span>
-															<span className="text-slate-600">{Math.round(k.prob * 100)}%</span>
+										<div className="mt-6">
+											{result ? (
+												<Reveal>
+													<div className="result-card typography-bump">
+														<div className="flex items-center justify-between">
+															<div className="font-semibold">Sortie du modèle</div>
+															{result?.label && <span className="chip-label">{String(result.label)}</span>}
 														</div>
-														<div className="progress" style={{ background: "#eef2f7" }}>
-															<div className="bar" style={{ width: `${Math.round(k.prob * 100)}%` }} />
+
+														{typeof result?.confidence === "number" && (
+															<div className="mt-2">
+																<div className="progress" style={{ background: "#e2e8f0" }}>
+																	<div
+																		className="bar"
+																		style={{ width: `${Math.round((result.confidence as number) * 100)}%`, background: "var(--color-primary)" }}
+																	/>
+																</div>
+																<div className="mt-1 text-xs text-slate-600">Confiance: {Math.round((result.confidence as number) * 100)}%</div>
+															</div>
+														)}
+
+														{/* Top-K dynamique */}
+														{Array.isArray(result?.topK) && result.topK.length > 0 && (
+															<div className="mt-4 grid sm:grid-cols-2 gap-4">
+																<div>
+																	<div className="text-sm font-medium">Top‑K</div>
+																	<div className="mt-2 space-y-2">
+																		{result.topK.map((k: any) => (
+																			<div key={k.label}>
+																				<div className="flex items-center justify-between text-sm">
+																					<span>{k.label}</span>
+																					<span className="text-slate-600">{Math.round((k.prob ?? 0) * 100)}%</span>
+																				</div>
+																				<div className="progress" style={{ background: "#eef2f7" }}>
+																					<div className="bar" style={{ width: `${Math.round((k.prob ?? 0) * 100)}%` }} />
+																				</div>
+																			</div>
+																		))}
+																	</div>
+																</div>
+																<div>
+																	<div className="text-sm font-medium">Métadonnées</div>
+																	<div className="mt-2 meta-grid meta-col">
+																		{result?.model && (
+																			<div className="meta-item meta-item--pro">
+																				<span className="icon-badge" aria-hidden>
+																					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12h18"/><path d="M3 6h18"/><path d="M3 18h18"/></svg>
+																				</span>
+																				<div className="flex-1 min-w-0">
+																					<div className="k">Modèle</div>
+																					<div className="v">{String(result.model)}</div>
+																				</div>
+																				<button className="icon-ghost" title="Copier" onClick={() => copyToClipboard(String(result.model))}>
+																					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+																				</button>
+																			</div>
+																		)}
+																		{typeof result?.inference_ms === "number" && (
+																			<div className="meta-item meta-item--pro">
+																				<span className="icon-badge badge-secondary" aria-hidden>
+																					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+																				</span>
+																				<div className="flex-1 min-w-0">
+																					<div className="k">Inférence</div>
+																					<div className="v v-mono">{result.inference_ms} ms</div>
+																				</div>
+																				<button className="icon-ghost" title="Copier" onClick={() => copyToClipboard(`${result.inference_ms} ms`)}>
+																					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+																				</button>
+																			</div>
+																		)}
+																		{result?.timestamp && (
+																			<div className="meta-item meta-item--pro">
+																				<span className="icon-badge badge-neutral" aria-hidden>
+																					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>
+																				</span>
+																				<div className="flex-1 min-w-0">
+																					<div className="k">Date</div>
+																					<div className="v v-mono">{formatUTC(result.timestamp)}</div>
+																				</div>
+																				<button className="icon-ghost" title="Copier" onClick={() => copyToClipboard(formatUTC(result.timestamp!))}>
+																					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+																				</button>
+																			</div>
+																		)}
+																	</div>
+																</div>
+															</div>
+														)}
+
+														<details className="mt-3">
+															<summary className="cursor-pointer text-sm text-slate-600">Détails bruts</summary>
+															<pre className="mt-2 text-xs overflow-auto">{JSON.stringify(result, null, 2)}</pre>
+														</details>
+
+														<div className="mt-4 card">
+															<div className="font-semibold">Conseils & Explications</div>
+															<ul className="note-list text-sm">
+																<li>Ce résultat est un indicateur, pas un diagnostic médical.</li>
+																<li>Si la confiance est faible (&lt; 70%), refaites une photo nette et bien éclairée.</li>
+																<li>En cas de doute clinique, consultez un dermatologue.</li>
+															</ul>
 														</div>
 													</div>
-												))}
-											</div>
-										</div>
-										<div>
-											<div className="text-sm font-medium">Métadonnées</div>
-																							<div className="mt-2 meta-grid meta-col">
-																								<div className="meta-item meta-item--pro">
-																									<span className="icon-badge" aria-hidden>
-																										<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12h18"/><path d="M3 6h18"/><path d="M3 18h18"/></svg>
-																									</span>
-																									<div className="flex-1 min-w-0">
-																										<div className="k">Modèle</div>
-																										<div className="v">{String(example.model)}</div>
-																									</div>
-																									<button className="icon-ghost" title="Copier" onClick={() => copyToClipboard(String(example.model))}>
-																										<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-																									</button>
-																								</div>
-																								<div className="meta-item meta-item--pro">
-																									<span className="icon-badge badge-secondary" aria-hidden>
-																										<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-																									</span>
-																									<div className="flex-1 min-w-0">
-																										<div className="k">Inférence</div>
-																										<div className="v v-mono">{example.inference_ms} ms</div>
-																									</div>
-																									<button className="icon-ghost" title="Copier" onClick={() => copyToClipboard(`${example.inference_ms} ms`)}>
-																										<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-																									</button>
-																								</div>
-																								<div className="meta-item meta-item--pro">
-																									<span className="icon-badge badge-neutral" aria-hidden>
-																										<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>
-																									</span>
-																									<div className="flex-1 min-w-0">
-																										<div className="k">Date</div>
-																										<div className="v v-mono">{formatUTC(example.timestamp)}</div>
-																									</div>
-																									<button className="icon-ghost" title="Copier" onClick={() => copyToClipboard(formatUTC(example.timestamp))}>
-																										<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-																									</button>
-																								</div>
-																							</div>
-										</div>
-									</div>
-
-									<div className="mt-4 card">
-										<div className="font-semibold">Conseils & Explications</div>
-										<ul className="note-list text-sm">
-											<li>Ce résultat est un indicateur, pas un diagnostic médical.</li>
-											<li>Si la confiance est faible (&lt; 70%), refaites une photo nette et bien éclairée.</li>
-											<li>En cas de doute clinique, consultez un dermatologue.</li>
-										</ul>
-									</div>
-								</div>
-							</Reveal>
-						)}
+												</Reveal>
+											) : (
+												<div className="result-card typography-bump text-center text-slate-400">
+													Aucun résultat à afficher. Veuillez importer une image et lancer l'analyse.
+												</div>
+											)}
 					</div>
 				</div>
 			</section>
