@@ -1,9 +1,11 @@
 # Environnement Python
 env/
+venv/
 .venv/
 __pycache__/
 *.pyc
-
+*.keras
+/models/best_model_effb2_ft.keras
 # Données brutes et intermédiaires
 /data/
 *.csv
