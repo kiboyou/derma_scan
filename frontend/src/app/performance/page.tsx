@@ -36,9 +36,9 @@ type PerfMetricsB4 = {
 type PerfMetrics = PerfMetricsB2 | PerfMetricsB4;
 
 export default function PerformancePage() {
-		// Tous les hooks d'abord
+	// Tous les hooks d'abord
 
-		// Calcul dashboard (juste avant return)
+	// Calcul dashboard (juste avant return)
 	const [metrics, setMetrics] = useState<PerfMetrics[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -81,7 +81,7 @@ export default function PerformancePage() {
 			<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 				<div className="section-title">
 					<span className="tag-accent">Performance</span>
-			<h1 className="mt-3 text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight">Évaluation des modèles</h1>
+					<h1 className="mt-3 text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight">Évaluation des modèles</h1>
 					<div className="title-underline" />
 					<p className="mt-3 text-slate-600 max-w-2xl mx-auto text-center">
 						Aperçu des métriques clés et des courbes: ROC, PR, matrice de confusion, courbes d'entraînement.
@@ -98,7 +98,7 @@ export default function PerformancePage() {
 						metrics.map((m, idx) => (
 							<div key={idx} className="card p-6 ">
 								<h2 className="font-bold text-xl mb-2">
-									{('model' in m ? m.model : m.model_name) || `Modèle #${idx+1}`}
+									{('model' in m ? m.model : m.model_name) || `Modèle #${idx + 1}`}
 								</h2>
 								{/* KPI Cards */}
 								<div className="kpi-grid mb-6 ">
@@ -126,7 +126,7 @@ export default function PerformancePage() {
 										<ConfusionMatrix cm={[
 											[m.confusion_matrix.benign.pred_benign, m.confusion_matrix.benign.pred_malignant],
 											[m.confusion_matrix.malignant.pred_benign, m.confusion_matrix.malignant.pred_malignant],
-											]} labels={["Bénin", "Malin"]} />
+										]} labels={["Bénin", "Malin"]} />
 										
 									</div>
 								) : (
@@ -144,162 +144,163 @@ export default function PerformancePage() {
 		</section>
 	);
 
-function svgPath(points: [number, number][] | undefined | null, width: number, height: number) {
-	const safePoints = Array.isArray(points) ? points : [];
-	const toXY = (p: [number, number]) => {
-		const [x, y] = p;
-		return [x * width, (1 - y) * height];
-	};
-	return safePoints
-		.map((p, i) => {
-			const [x, y] = toXY(p);
-			return `${i === 0 ? "M" : "L"}${x},${y}`;
-		})
-		.join(" ");
-}
-
-function RocChart({ points }: { points: [number, number][] }) {
-	const width = 520, height = 280, pad = 28;
-	const path = svgPath(points, width - pad * 2, height - pad * 2);
-	return (
-		<svg width="100%" viewBox={`0 0 ${width} ${height}`} className="chart">
-			<g transform={`translate(${pad},${pad})`}>
-				<rect x={0} y={0} width={width - pad * 2} height={height - pad * 2} rx={10} ry={10} fill="#fff" stroke="rgba(2,6,23,0.06)" />
-				<line x1={0} y1={height - pad * 2} x2={width - pad * 2} y2={0} stroke="#e5e7eb" strokeDasharray="4 4" />
-				<path d={path} fill="none" stroke="var(--color-primary)" strokeWidth={3} />
-				<Axis width={width - pad * 2} height={height - pad * 2} />
-			</g>
-		</svg>
-	);
-}
-
-function PrChart({ points }: { points: [number, number][] }) {
-	const width = 520, height = 280, pad = 28;
-	const path = svgPath(points, width - pad * 2, height - pad * 2);
-	return (
-		<svg width="100%" viewBox={`0 0 ${width} ${height}`} className="chart">
-			<g transform={`translate(${pad},${pad})`}>
-				<rect x={0} y={0} width={width - pad * 2} height={height - pad * 2} rx={10} ry={10} fill="#fff" stroke="rgba(2,6,23,0.06)" />
-				<path d={path} fill="none" stroke="var(--color-primary)" strokeWidth={3} />
-				<Axis width={width - pad * 2} height={height - pad * 2} />
-			</g>
-		</svg>
-	);
-}
-
-function TrainCurves({ loss, acc }: { loss: number[]; acc: number[] }) {
-	const width = 520, height = 280, pad = 28;
-	const safeLoss = Array.isArray(loss) ? loss : [];
-	const safeAcc = Array.isArray(acc) ? acc : [];
-	const n = Math.max(safeLoss.length, safeAcc.length);
-	if (n === 0) {
-		return <div className="text-center text-slate-500 py-8">Aucune donnée d'entraînement disponible.</div>;
+	function svgPath(points: [number, number][] | undefined | null, width: number, height: number) {
+		const safePoints = Array.isArray(points) ? points : [];
+		const toXY = (p: [number, number]) => {
+			const [x, y] = p;
+			return [x * width, (1 - y) * height];
+		};
+		return safePoints
+			.map((p, i) => {
+				const [x, y] = toXY(p);
+				return `${i === 0 ? "M" : "L"}${x},${y}`;
+			})
+			.join(" ");
 	}
-	const toXY = (i: number, v: number, min: number, max: number) => {
-		const x = n > 1 ? (i / (n - 1)) * (width - pad * 2) : 0;
-		const y = max !== min ? (1 - (v - min) / (max - min)) * (height - pad * 2) : height / 2;
-		return [x, y];
-	};
-	const lossMin = safeLoss.length ? Math.min(...safeLoss) : 0, lossMax = safeLoss.length ? Math.max(...safeLoss) : 1;
-	const accMin = safeAcc.length ? Math.min(...safeAcc) : 0, accMax = safeAcc.length ? Math.max(...safeAcc) : 1;
-	const lossPath = safeLoss
-		.map((v, i) => {
-			const [x, y] = toXY(i, v, lossMin, lossMax);
-			return `${i === 0 ? "M" : "L"}${x},${y}`;
-		})
-		.join(" ");
-	const accPath = safeAcc
-		.map((v, i) => {
-			const [x, y] = toXY(i, v, accMin, accMax);
-			return `${i === 0 ? "M" : "L"}${x},${y}`;
-		})
-		.join(" ");
-	return (
-		<svg width="100%" viewBox={`0 0 ${width} ${height}`} className="chart">
-			<g transform={`translate(${pad},${pad})`}>
-				<rect x={0} y={0} width={width - pad * 2} height={height - pad * 2} rx={10} ry={10} fill="#fff" stroke="rgba(2,6,23,0.06)" />
-				<path d={lossPath} fill="none" stroke="var(--color-secondary)" strokeWidth={3} />
-				<path d={accPath} fill="none" stroke="var(--color-primary)" strokeWidth={3} />
-				<Axis width={width - pad * 2} height={height - pad * 2} />
-			</g>
-		</svg>
-	);
-}
 
-function Axis({ width, height }: { width: number; height: number }) {
-	return (
-		<g>
-			<line x1={0} y1={height} x2={width} y2={height} stroke="#e5e7eb" />
-			<line x1={0} y1={0} x2={0} y2={height} stroke="#e5e7eb" />
-			{[0, 0.5, 1].map((t) => (
-				<g key={t}>
-					<line x1={t * width} y1={height} x2={t * width} y2={height - 6} stroke="#94a3b8" />
-					<text x={t * width} y={height + 16} fontSize={10} fill="#64748b" textAnchor="middle">{t}</text>
-					<line x1={0} y1={(1 - t) * height} x2={6} y2={(1 - t) * height} stroke="#94a3b8" />
-					<text x={-10} y={(1 - t) * height + 3} fontSize={10} fill="#64748b" textAnchor="end">{t}</text>
+	function RocChart({ points }: { points: [number, number][] }) {
+		const width = 520, height = 280, pad = 28;
+		const path = svgPath(points, width - pad * 2, height - pad * 2);
+		return (
+			<svg width="100%" viewBox={`0 0 ${width} ${height}`} className="chart">
+				<g transform={`translate(${pad},${pad})`}>
+					<rect x={0} y={0} width={width - pad * 2} height={height - pad * 2} rx={10} ry={10} fill="#fff" stroke="rgba(2,6,23,0.06)" />
+					<line x1={0} y1={height - pad * 2} x2={width - pad * 2} y2={0} stroke="#e5e7eb" strokeDasharray="4 4" />
+					<path d={path} fill="none" stroke="var(--color-primary)" strokeWidth={3} />
+					<Axis width={width - pad * 2} height={height - pad * 2} />
 				</g>
-			))}
-		</g>
-	);
-}
+			</svg>
+		);
+	}
 
-function ConfusionMatrix({ cm, labels }: { cm: number[][]; labels: string[] }) {
-	const n = cm.length;
-	const total = cm.flat().reduce((a, b) => a + b, 0);
-	const max = Math.max(...cm.flat());
-	return (
-	  <div>
-	    <div className="cm-grid" style={{ gridTemplateColumns: `repeat(${n + 1}, minmax(0, 1fr))` }}>
-	      <div />
-	      {labels.map((l) => (
-	        <div key={`col-${l}`} className="cm-h">Préd: {l}</div>
-	      ))}
-	      {cm.map((row, i) => (
-	        <Fragment key={`row-${i}`}>
-	          <div key={`rowh-${i}`} className="cm-h">Vrai: {labels[i]}</div>
-					{row.map((v, j) => {
-						const intensity = v / max;
-						return (
-							<div key={`cell-${i}-${j}`} className="cm-cell" style={{ background: `rgba(0,123,255,${0.08 + intensity * 0.28})` }}>
-								<div className="cm-v">{v}</div>
-								<div className="cm-p">{((v / total) * 100).toFixed(1)}%</div>
-							</div>
-						);
-					})}
-	        </Fragment>
-	      ))}
-	    </div>
-	    <div className="legend mt-2"><span className="dot dot-primary" /> Intensité = fréquence</div>
-	  </div>
-	);
-}
+	function PrChart({ points }: { points: [number, number][] }) {
+		const width = 520, height = 280, pad = 28;
+		const path = svgPath(points, width - pad * 2, height - pad * 2);
+		return (
+			<svg width="100%" viewBox={`0 0 ${width} ${height}`} className="chart">
+				<g transform={`translate(${pad},${pad})`}>
+					<rect x={0} y={0} width={width - pad * 2} height={height - pad * 2} rx={10} ry={10} fill="#fff" stroke="rgba(2,6,23,0.06)" />
+					<path d={path} fill="none" stroke="var(--color-primary)" strokeWidth={3} />
+					<Axis width={width - pad * 2} height={height - pad * 2} />
+				</g>
+			</svg>
+		);
+	}
 
-function ConfusionMatrixB4({ cm }: { cm: { benign: { pred_benign: number; pred_malignant: number }; malignant: { pred_benign: number; pred_malignant: number } } }) {
-  const totalBenign = cm.benign.pred_benign + cm.benign.pred_malignant;
-  const totalMalignant = cm.malignant.pred_benign + cm.malignant.pred_malignant;
-  const total = totalBenign + totalMalignant;
-  const percent = (n: number) => total ? ((n / total) * 100).toFixed(1) + '%' : '-';
-  return (
-    <table className="cm-table">
-      <thead>
-        <tr>
-          <th></th>
-          <th>Préd: Bénin</th>
-          <th>Préd: Malin</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <th>Vrai: Bénin</th>
-          <td>{cm.benign.pred_benign}<br /><span className="cm-percent">{percent(cm.benign.pred_benign)}</span></td>
-          <td>{cm.benign.pred_malignant}<br /><span className="cm-percent">{percent(cm.benign.pred_malignant)}</span></td>
-        </tr>
-        <tr>
-          <th>Vrai: Malin</th>
-          <td>{cm.malignant.pred_benign}<br /><span className="cm-percent">{percent(cm.malignant.pred_benign)}</span></td>
-          <td>{cm.malignant.pred_malignant}<br /><span className="cm-percent">{percent(cm.malignant.pred_malignant)}</span></td>
-        </tr>
-      </tbody>
-    </table>
-  );
+	function TrainCurves({ loss, acc }: { loss: number[]; acc: number[] }) {
+		const width = 520, height = 280, pad = 28;
+		const safeLoss = Array.isArray(loss) ? loss : [];
+		const safeAcc = Array.isArray(acc) ? acc : [];
+		const n = Math.max(safeLoss.length, safeAcc.length);
+		if (n === 0) {
+			return <div className="text-center text-slate-500 py-8">Aucune donnée d'entraînement disponible.</div>;
+		}
+		const toXY = (i: number, v: number, min: number, max: number) => {
+			const x = n > 1 ? (i / (n - 1)) * (width - pad * 2) : 0;
+			const y = max !== min ? (1 - (v - min) / (max - min)) * (height - pad * 2) : height / 2;
+			return [x, y];
+		};
+		const lossMin = safeLoss.length ? Math.min(...safeLoss) : 0, lossMax = safeLoss.length ? Math.max(...safeLoss) : 1;
+		const accMin = safeAcc.length ? Math.min(...safeAcc) : 0, accMax = safeAcc.length ? Math.max(...safeAcc) : 1;
+		const lossPath = safeLoss
+			.map((v, i) => {
+				const [x, y] = toXY(i, v, lossMin, lossMax);
+				return `${i === 0 ? "M" : "L"}${x},${y}`;
+			})
+			.join(" ");
+		const accPath = safeAcc
+			.map((v, i) => {
+				const [x, y] = toXY(i, v, accMin, accMax);
+				return `${i === 0 ? "M" : "L"}${x},${y}`;
+			})
+			.join(" ");
+		return (
+			<svg width="100%" viewBox={`0 0 ${width} ${height}`} className="chart">
+				<g transform={`translate(${pad},${pad})`}>
+					<rect x={0} y={0} width={width - pad * 2} height={height - pad * 2} rx={10} ry={10} fill="#fff" stroke="rgba(2,6,23,0.06)" />
+					<path d={lossPath} fill="none" stroke="var(--color-secondary)" strokeWidth={3} />
+					<path d={accPath} fill="none" stroke="var(--color-primary)" strokeWidth={3} />
+					<Axis width={width - pad * 2} height={height - pad * 2} />
+				</g>
+			</svg>
+		);
+	}
+
+	function Axis({ width, height }: { width: number; height: number }) {
+		return (
+			<g>
+				<line x1={0} y1={height} x2={width} y2={height} stroke="#e5e7eb" />
+				<line x1={0} y1={0} x2={0} y2={height} stroke="#e5e7eb" />
+				{[0, 0.5, 1].map((t) => (
+					<g key={t}>
+						<line x1={t * width} y1={height} x2={t * width} y2={height - 6} stroke="#94a3b8" />
+						<text x={t * width} y={height + 16} fontSize={10} fill="#64748b" textAnchor="middle">{t}</text>
+						<line x1={0} y1={(1 - t) * height} x2={6} y2={(1 - t) * height} stroke="#94a3b8" />
+						<text x={-10} y={(1 - t) * height + 3} fontSize={10} fill="#64748b" textAnchor="end">{t}</text>
+					</g>
+				))}
+			</g>
+		);
+	}
+
+	function ConfusionMatrix({ cm, labels }: { cm: number[][]; labels: string[] }) {
+		const n = cm.length;
+		const total = cm.flat().reduce((a, b) => a + b, 0);
+		const max = Math.max(...cm.flat());
+		return (
+			<div>
+				<div className="cm-grid" style={{ gridTemplateColumns: `repeat(${n + 1}, minmax(0, 1fr))` }}>
+					<div />
+					{labels.map((l) => (
+						<div key={`col-${l}`} className="cm-h">Préd: {l}</div>
+					))}
+					{cm.map((row, i) => (
+						<Fragment key={`row-${i}`}>
+							<div key={`rowh-${i}`} className="cm-h">Vrai: {labels[i]}</div>
+							{row.map((v, j) => {
+								const intensity = v / max;
+								return (
+									<div key={`cell-${i}-${j}`} className="cm-cell" style={{ background: `rgba(0,123,255,${0.08 + intensity * 0.28})` }}>
+										<div className="cm-v">{v}</div>
+										<div className="cm-p">{((v / total) * 100).toFixed(1)}%</div>
+									</div>
+								);
+							})}
+						</Fragment>
+					))}
+				</div>
+				<div className="legend mt-2"><span className="dot dot-primary" /> Intensité = fréquence</div>
+			</div>
+		);
+	}
+
+	function ConfusionMatrixB4({ cm }: { cm: { benign: { pred_benign: number; pred_malignant: number }; malignant: { pred_benign: number; pred_malignant: number } } }) {
+		const totalBenign = cm.benign.pred_benign + cm.benign.pred_malignant;
+		const totalMalignant = cm.malignant.pred_benign + cm.malignant.pred_malignant;
+		const total = totalBenign + totalMalignant;
+		const percent = (n: number) => total ? ((n / total) * 100).toFixed(1) + '%' : '-';
+		return (
+			<table className="cm-table">
+				<thead>
+					<tr>
+						<th></th>
+						<th>Préd: Bénin</th>
+						<th>Préd: Malin</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<th>Vrai: Bénin</th>
+						<td>{cm.benign.pred_benign}<br /><span className="cm-percent">{percent(cm.benign.pred_benign)}</span></td>
+						<td>{cm.benign.pred_malignant}<br /><span className="cm-percent">{percent(cm.benign.pred_malignant)}</span></td>
+					</tr>
+					<tr>
+						<th>Vrai: Malin</th>
+						<td>{cm.malignant.pred_benign}<br /><span className="cm-percent">{percent(cm.malignant.pred_benign)}</span></td>
+						<td>{cm.malignant.pred_malignant}<br /><span className="cm-percent">{percent(cm.malignant.pred_malignant)}</span></td>
+					</tr>
+				</tbody>
+			</table>
+		);
+	}
 }
