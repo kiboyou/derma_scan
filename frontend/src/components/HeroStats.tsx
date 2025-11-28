@@ -37,6 +37,7 @@ export default function HeroStats() {
   let precision = 0, images = 0, models = 0;
   if (metrics) {
     precision = (metrics.accuracy ?? 0) * 100;
+    
     // Support = total images (from classification_report)
     images = metrics.classification_report?.["weighted avg"]?.support ?? 0;
     models = Array.isArray(metrics.models) ? metrics.models.length : 0;

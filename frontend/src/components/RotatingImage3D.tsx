@@ -67,7 +67,7 @@ export default function RotatingImage3D({
 }) {
   return (
     <div
-      className={`card p-0 overflow-hidden rounded-2xl shadow-lg ${className ?? ""}`}
+      className={`card p-0 overflow-hidden rounded-2xl shadow-sm ${className ?? ""}`}
       style={{ height }}
     >
       <Canvas camera={{ position: [0, 0, 3], fov: 50 }}>

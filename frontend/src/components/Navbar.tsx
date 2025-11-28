@@ -15,7 +15,7 @@ function NavItem({ href, children, onClick }: { href: string; children: React.Re
 export default function Navbar() {
 	const [open, setOpen] = useState(false);
 	const [scrolled, setScrolled] = useState(false);
-  const pathname = usePathname();
+  	const pathname = usePathname();
 
 	useEffect(() => {
 		const onScroll = () => {

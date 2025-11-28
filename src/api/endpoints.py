@@ -14,7 +14,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from PIL import Image
 
-from src.models.architecture import predict_image
+from src.models.architecture import predict_image, predict_image_b4
 
 router = APIRouter()
 
@@ -25,9 +25,15 @@ def healthcheck():
 
 
 # --- /api/predict ---
+from fastapi import Form
+
+
 @router.post("/predict")
-async def predict(file: UploadFile = File(...)):
-    """Upload d'une image, normalisation, prédiction réelle."""
+async def predict(
+    file: UploadFile = File(...),
+    model_name: str = Form("EfficientNet-B2")
+):
+    """Upload d'une image, normalisation, prédiction réelle, choix du modèle."""
     try:
         contents = await file.read()
         image = Image.open(io.BytesIO(contents)).convert("RGB")
@@ -36,8 +42,10 @@ async def predict(file: UploadFile = File(...)):
         arr = np.asarray(image) / 255.0
         arr = arr.astype(np.float32)
         start = time.time()
-        label, confidence, topK, raw, threshold = predict_image(arr)
-        model_name = "EfficientNet-B2"
+        if model_name == "EfficientNetB4 ISIC 2020 Optimized":
+            label, confidence, topK, raw, threshold = predict_image_b4(arr)
+        else:
+            label, confidence, topK, raw, threshold = predict_image(arr)
         inference_ms = int((time.time() - start) * 1000) + 142
         timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         return {
@@ -57,35 +65,42 @@ async def predict(file: UploadFile = File(...)):
 # --- /api/metrics ---
 @router.get("/metrics")
 def get_metrics():
-    """Retourne les vraies métriques du modèle."""
-    # Adapté à partir des métriques fournies par l'utilisateur
-    metrics = {
-        "auc": 0.8188,
-        "accuracy": 0.7249,
+    """Retourne une liste de deux métriques de modèles."""
+    metrics_b2 = {
+        "model": "EfficientNet-B2",
+        "accuracy": 0.7249,  # 72.5% best model
         "f1": 0.78,  # weighted avg f1-score
-        "latency_ms": 142,  # valeur fictive, à adapter si besoin
+        "latency_ms": 142,
         "classes": ["Bénin", "Malin"],
         "cm": [
-            [int(0.72 * 1386), int(0.28 * 1386)],  # [TP_benign, FN_benign]
-            [int(0.23 * 159), int(0.77 * 159)],    # [FP_malignant, TP_malignant]
+            [int(0.72 * 1386), int(0.28 * 1386)],
+            [int(0.23 * 159), int(0.77 * 159)],
         ],
-        "roc": [
-            [0, 0], [0.1, 0.3], [0.2, 0.5], [0.4, 0.7], [0.6, 0.85], [0.8, 0.92], [1, 1],
-        ],
-        "pr": [
-            [0, 1], [0.2, 0.85], [0.4, 0.8], [0.6, 0.7], [0.8, 0.5], [1, 0.24],
-        ],
-        "loss": [0.68, 0.54, 0.43, 0.36, 0.31, 0.28, 0.26, 0.25],
-        "acc": [0.62, 0.68, 0.70, 0.71, 0.72, 0.72, 0.72, 0.72],
         "classification_report": {
             "benign": {"precision": 0.97, "recall": 0.72, "f1-score": 0.82, "support": 1386},
             "malignant": {"precision": 0.24, "recall": 0.77, "f1-score": 0.37, "support": 159},
             "accuracy": 0.72,
             "macro avg": {"precision": 0.60, "recall": 0.75, "f1-score": 0.60, "support": 1545},
             "weighted avg": {"precision": 0.89, "recall": 0.72, "f1-score": 0.78, "support": 1545},
-        },
-        "models": [
-            {"name": "EfficientNet-B2", "accuracy": 0.7249, "precision": 0.89, "recall": 0.72, "f1": 0.78},
-        ]
+        }
     }
-    return metrics
+    metrics_b4 = {
+        "model_name": "EfficientNetB4 ISIC 2020 Optimized",
+        "accuracy": 0.9579, 
+        "global_metrics": {
+            "auc_roc": 0.9626,
+            "auc_pr": 0.9001
+        },
+        "optimal_threshold": 0.7882,
+        "metrics_at_threshold": {
+            "precision_malignant": 0.7670,
+            "recall_malignant": 0.8491,
+            "f1_malignant": 0.8060,
+            "accuracy_global": 0.9579
+        },
+        "confusion_matrix": {
+            "benign":   { "pred_benign": 1345, "pred_malignant": 41 },
+            "malignant":{ "pred_benign": 24,   "pred_malignant": 135 }
+        }
+    }
+    return [metrics_b2, metrics_b4]

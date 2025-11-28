@@ -16,6 +16,7 @@ type PredictResponse = {
 };
 
 
+
 export default function PredictionPage() {
 	const [file, setFile] = useState<File | null>(null);
 	const [preview, setPreview] = useState<string | null>(null);
@@ -31,6 +32,8 @@ export default function PredictionPage() {
 		bright: boolean;
 		centered: boolean;
 	}>(null);
+	// Model selection
+	const [modelName, setModelName] = useState<string>("EfficientNet-B2");
 
 	// Utilise le proxy Next.js en dev (voir next.config.ts)
 	const apiBase = "/api";
@@ -210,6 +213,7 @@ export default function PredictionPage() {
 		try {
 			const form = new FormData();
 			form.append("file", file);
+			form.append("model_name", modelName);
 			const resp: any = await new Promise((resolve, reject) => {
 				const xhr = new XMLHttpRequest();
 				xhr.open("POST", `${apiBase}/predict`);
@@ -321,6 +325,20 @@ export default function PredictionPage() {
 											Choisir un fichier
 											<input type="file" accept="image/*" onChange={onChange} />
 										</label>
+									</div>
+									{/* Model selection dropdown */}
+									<div className="mt-4">
+										<label className="block text-sm font-medium mb-1" htmlFor="model-select">Choisir le modèle :</label>
+										<select
+											id="model-select"
+											className="input input-bordered w-full max-w-xs"
+											value={modelName}
+											onChange={e => setModelName(e.target.value)}
+											disabled={loading}
+										>
+											<option value="EfficientNet-B2">EfficientNet-B2</option>
+											<option value="EfficientNetB4 ISIC 2020 Optimized">EfficientNetB4 ISIC 2020 Optimized</option>
+										</select>
 									</div>
 
 									{preview ? (
