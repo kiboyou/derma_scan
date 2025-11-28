@@ -23,7 +23,7 @@ export default function Toaster() {
       {toasts.map((t) => (
         <div
           key={t.id}
-          className="px-4 py-3 rounded-lg shadow-lg"
+          className="px-4 py-3 rounded-lg shadow-sm"
           style={{
             background: t.type === "error" ? "#FEE2E2" : t.type === "success" ? "#ECFDF5" : "#EFF6FF",
             color: t.type === "error" ? "#7F1D1D" : t.type === "success" ? "#065F46" : "#1E3A8A",

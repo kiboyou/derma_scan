@@ -1,11 +1,15 @@
+"use client";
 import ContactSection from "@/components/ContactSection";
 import HeroFX from "@/components/HeroFX";
-import HeroStats from "@/components/HeroStats";
+import Navbar from "@/components/Navbar";
 import Reveal from "@/components/Reveal";
 import RotatingImage3D from "@/components/RotatingImage3D";
+import { useDashboardMetrics } from "@/hooks/useDashboardMetrics";
 import Link from "next/link";
 
 export default function Home() {
+  const { bestAccuracy, support, nbModels, loading, error } = useDashboardMetrics();
+
   return (
     <>
       {/* Hero / Accueil immersive */}
@@ -20,12 +24,30 @@ export default function Home() {
             <p className="mt-4 text-lg text-slate-600 max-w-xl">
               Une plateforme complète pour ingérer, traiter et analyser des images dermatologiques à grande échelle et classer automatiquement les lésions cutanées.
             </p>
+            
             <div className="mt-6 flex flex-wrap gap-3">
               <Link href="/prediction" className="btn-primary">Faire une prédiction</Link>
               <Link href="#how" className="btn-secondary">Comment ça marche ?</Link>
             </div>
             {/* Stats strip */}
-            <HeroStats />
+            {/* Dashboard résumé dynamique */}
+            <div className="mt-8 kpi-grid">
+              <div className="kpi-card">
+                <div className="kpi-label">Précision</div>
+                <div className="kpi-value">{loading ? '...' : (bestAccuracy * 100).toFixed(2) + '%'}</div>
+                <div className="kpi-sub">Meilleure accuracy</div>
+              </div>
+              <div className="kpi-card">
+                <div className="kpi-label">Images</div>
+                <div className="kpi-value">{loading ? '...' : (support > 0 ? support : '-')}</div>
+                <div className="kpi-sub">Total</div>
+              </div>
+              <div className="kpi-card">
+                <div className="kpi-label">Modèles</div>
+                <div className="kpi-value">{loading ? '...' : nbModels}</div>
+                <div className="kpi-sub">Comparés</div>
+              </div>
+            </div>
           </div>
           <div>
             <RotatingImage3D url="https://res.cloudinary.com/dqybzf7bu/image/upload/v1761610076/1f3b44c84f9b1d7e2568647fb80327be-removebg-preview_rktogj.png" height={660} />
@@ -204,9 +226,9 @@ export default function Home() {
                   {i < arr.length - 1 && (
                     <>
                       {/* Desktop/tablet: horizontal connector to next card */}
-                      <div className="hidden md:block absolute top-1/2 -translate-y-1/2 right-[-22px] w-10 h-[2px] bg-slate-200" aria-hidden />
+                      <div className="hidden md:block absolute top-1/2 -translate-y-1/2 right-[-22px] w-10 h-0.5 bg-slate-200" aria-hidden />
                       {/* Mobile: vertical connector to next card */}
-                      <div className="md:hidden absolute left-1/2 -translate-x-1/2 bottom-[-18px] h-6 w-[2px] bg-slate-200" aria-hidden />
+                      <div className="md:hidden absolute left-1/2 -translate-x-1/2 bottom-[-18px] h-6 w-0.5 bg-slate-200" aria-hidden />
                     </>
                   )}
                 </div>
@@ -235,11 +257,11 @@ export default function Home() {
               { id: 3, name: "Acobe ange BONI", role: "Etudiant en Data Engineer", spec: "Pipelines & Big Data", img: "https://res.cloudinary.com/dqybzf7bu/image/upload/v1761769425/A_252_dbbpuh.jpg", linkedin: "https://www.linkedin.com/in/acobe-ange-ulrich-boni/", github: "https://github.com/membre3" },
             ].map((m, idx) => (
               <Reveal key={m.id} delay={idx * 80}>
-                <article className="group rounded-3xl border border-black/5 bg-white/70 backdrop-blur-sm shadow-sm hover:shadow-md transition-all">
+                <article className="group rounded-3xl border border-black/5 bg-white/70 backdrop-blur-sm shadow-sm hover:shadow-sm transition-all">
                   <div className="p-6 flex flex-col items-center text-center relative">
                     <div className="relative">
-                      <span className="absolute inset-0 -z-0 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-500 blur opacity-40 group-hover:opacity-60 transition-opacity" aria-hidden />
-                      <div className="relative p-[3px] rounded-full bg-gradient-to-tr from-sky-500 to-indigo-500">
+                      <span className="absolute inset-0 z-0 rounded-full bg-linear-to-tr from-sky-500 to-indigo-500 blur opacity-40 group-hover:opacity-60 transition-opacity" aria-hidden />
+                      <div className="relative p-[3px] rounded-full bg-linear-to-tr from-sky-500 to-indigo-500">
                         <img
                           src={m.img}
                           alt={m.name}

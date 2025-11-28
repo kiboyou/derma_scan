@@ -69,9 +69,9 @@ export default function RootLayout({
         )}
         <Toaster />
         <GlobalInteractions />
-  <a href="#content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 bg-white text-black px-3 py-2 rounded-md shadow">Aller au contenu</a>
-  <Navbar />
-  <main id="content">{children}</main>
+          <a href="#content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 bg-white text-black px-3 py-2 rounded-md shadow">Aller au contenu</a>
+          <Navbar />
+          <main id="content">{children}</main>
         <Footer />
       </body>
     </html>
