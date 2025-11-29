@@ -5,6 +5,7 @@ Définit les routes de l'API pour l'inférence, l'upload de données, etc.
 """
 
 
+import base64
 import io
 import time
 from typing import List
@@ -14,7 +15,9 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from PIL import Image
 
-from src.models.architecture import predict_image, predict_image_b4
+from src.models.architecture import predict_image_b4
+from src.ai.explainer import explain_with_llm
+
 
 router = APIRouter()
 
@@ -30,8 +33,7 @@ from fastapi import Form
 
 @router.post("/predict")
 async def predict(
-    file: UploadFile = File(...),
-    model_name: str = Form("EfficientNet-B2")
+    file: UploadFile = File(...)
 ):
     """Upload d'une image, normalisation, prédiction réelle, choix du modèle."""
     try:
@@ -42,50 +44,45 @@ async def predict(
         arr = np.asarray(image) / 255.0
         arr = arr.astype(np.float32)
         start = time.time()
-        if model_name == "EfficientNetB4 ISIC 2020 Optimized":
-            label, confidence, topK, raw, threshold = predict_image_b4(arr)
-        else:
-            label, confidence, topK, raw, threshold = predict_image(arr)
+        print("[endpoints.predict] Received image; resized to 260x260; arr stats min:", float(arr.min()), "max:", float(arr.max()))
+
+        label, confidence, topK, raw, threshold = predict_image_b4(arr)
+        print(f"[endpoints.predict] prediction label={label} confidence={confidence:.4f} raw={raw:.4f} threshold={threshold:.4f}")
+
+        explanation = explain_with_llm(
+            label=label,
+            prob=float(raw),
+            threshold=float(threshold)
+        )
+
+        print("[endpoints.predict] LLM explanation length:", len(explanation))
+
+        # Temps d'inférence
         inference_ms = int((time.time() - start) * 1000) + 142
         timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
         return {
             "label": label,
             "confidence": confidence,
             "topK": topK,
-            "model": model_name,
+            "model": "EfficientNet-B4",
             "inference_ms": inference_ms,
             "timestamp": timestamp,
             "prob_malin": raw,
             "threshold": threshold,
+            "llm_explanation": explanation,
         }
     except Exception as e:
+        print("[endpoints.predict] ERROR:", repr(e))
         raise HTTPException(status_code=400, detail=f"Erreur de traitement: {str(e)}")
 
 
 # --- /api/metrics ---
 @router.get("/metrics")
 def get_metrics():
-    """Retourne une liste de deux métriques de modèles."""
-    metrics_b2 = {
-        "model": "EfficientNet-B2",
-        "accuracy": 0.7249,  # 72.5% best model
-        "f1": 0.78,  # weighted avg f1-score
-        "latency_ms": 142,
-        "classes": ["Bénin", "Malin"],
-        "cm": [
-            [int(0.72 * 1386), int(0.28 * 1386)],
-            [int(0.23 * 159), int(0.77 * 159)],
-        ],
-        "classification_report": {
-            "benign": {"precision": 0.97, "recall": 0.72, "f1-score": 0.82, "support": 1386},
-            "malignant": {"precision": 0.24, "recall": 0.77, "f1-score": 0.37, "support": 159},
-            "accuracy": 0.72,
-            "macro avg": {"precision": 0.60, "recall": 0.75, "f1-score": 0.60, "support": 1545},
-            "weighted avg": {"precision": 0.89, "recall": 0.72, "f1-score": 0.78, "support": 1545},
-        }
-    }
+    """Retourne les métriques du modèle B4."""
     metrics_b4 = {
-        "model_name": "EfficientNetB4 ISIC 2020 Optimized",
+        "model_name": "EfficientNet-B4",
         "accuracy": 0.9579, 
         "global_metrics": {
             "auc_roc": 0.9626,
@@ -103,4 +100,4 @@ def get_metrics():
             "malignant":{ "pred_benign": 24,   "pred_malignant": 135 }
         }
     }
-    return [metrics_b2, metrics_b4]
+    return [metrics_b4]
