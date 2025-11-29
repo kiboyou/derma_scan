@@ -585,7 +585,7 @@ export default function PredictionPage() {
 																					<div className="flex-1 min-w-0 space-y-3">
 																						{explanation && (
 																							<div>
-																								<div className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Mon Analyse</div>
+																								<div className="text-xs uppercase tracking-wide text-slate-500 font-semibold">IA Analyse</div>
 																								<p className="mt-1 text-sm leading-relaxed text-slate-700 whitespace-pre-line">{explanation}</p>
 																							</div>
 																						)}
