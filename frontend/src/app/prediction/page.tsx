@@ -33,8 +33,8 @@ export default function PredictionPage() {
 		centered: boolean;
 	}>(null);
 
-	// Utilise le proxy Next.js en dev (voir next.config.ts)
-	const apiBase = "/api";
+	// Base API depuis les variables d'environnement
+	const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "/api";
 
 	// Stable example template to showcase expected result structure (no dynamic time to avoid SSR/client mismatch)
 	// Plus d'exemple statique, tout est dynamique
