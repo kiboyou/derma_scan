@@ -32,8 +32,6 @@ export default function PredictionPage() {
 		bright: boolean;
 		centered: boolean;
 	}>(null);
-	// Model selection
-	const [modelName, setModelName] = useState<string>("EfficientNet-B2");
 
 	// Utilise le proxy Next.js en dev (voir next.config.ts)
 	const apiBase = "/api";
@@ -213,7 +211,6 @@ export default function PredictionPage() {
 		try {
 			const form = new FormData();
 			form.append("file", file);
-			form.append("model_name", modelName);
 			const resp: any = await new Promise((resolve, reject) => {
 				const xhr = new XMLHttpRequest();
 				xhr.open("POST", `${apiBase}/predict`);
@@ -253,6 +250,43 @@ export default function PredictionPage() {
 		} finally {
 			setLoading(false);
 		}
+	};
+
+	// Helper: extrait proprement les champs explanation et key_advice
+	const extractLLMFields = (raw: any): { explanation?: string; key_advice?: string; confidence_level?: string; risk_level?: string } => {
+		if (!raw) return {};
+		let obj: any = null;
+		if (typeof raw === 'object') {
+			obj = raw;
+		} else if (typeof raw === 'string') {
+			let s = raw.trim();
+			// Enlever éventuelles fences ```json ... ```
+			s = s.replace(/^```json/i, '').replace(/```$/i, '').trim();
+			// Corriger double accolades {{ }} => { }
+			if (s.startsWith('{{') && s.endsWith('}}')) s = s.slice(1, -1);
+			try {
+				obj = JSON.parse(s);
+			} catch {
+				// Fallback regex extraction
+				const expMatch = s.match(/"explanation"\s*:\s*"([^"]+)"/i);
+				const advMatch = s.match(/"key_advice"\s*:\s*"([^"]+)"/i);
+				const confMatch = s.match(/"confidence_level"\s*:\s*"([^"]+)"/i);
+				const riskMatch = s.match(/"risk_level"\s*:\s*"([^"]+)"/i);
+				return {
+					explanation: expMatch ? expMatch[1] : undefined,
+					key_advice: advMatch ? advMatch[1] : undefined,
+					confidence_level: confMatch ? confMatch[1] : undefined,
+					risk_level: riskMatch ? riskMatch[1] : undefined,
+				};
+			}
+		}
+		if (!obj || typeof obj !== 'object') return {};
+		return {
+			explanation: typeof obj.explanation === 'string' ? obj.explanation : undefined,
+			key_advice: typeof obj.key_advice === 'string' ? obj.key_advice : undefined,
+			confidence_level: typeof obj.confidence_level === 'string' ? obj.confidence_level : undefined,
+			risk_level: typeof obj.risk_level === 'string' ? obj.risk_level : undefined,
+		};
 	};
 
 	return (
@@ -326,20 +360,7 @@ export default function PredictionPage() {
 											<input type="file" accept="image/*" onChange={onChange} />
 										</label>
 									</div>
-									{/* Model selection dropdown */}
-									<div className="mt-4">
-										<label className="block text-sm font-medium mb-1" htmlFor="model-select">Choisir le modèle :</label>
-										<select
-											id="model-select"
-											className="input input-bordered w-full max-w-xs"
-											value={modelName}
-											onChange={e => setModelName(e.target.value)}
-											disabled={loading}
-										>
-											<option value="EfficientNet-B2">EfficientNet-B2</option>
-											<option value="EfficientNetB4 ISIC 2020 Optimized">EfficientNetB4 ISIC 2020 Optimized</option>
-										</select>
-									</div>
+                                    
 
 									{preview ? (
 										<div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
@@ -519,6 +540,20 @@ export default function PredictionPage() {
 																				</button>
 																			</div>
 																		)}
+																		{typeof (result as any)?.logit === "number" && (
+																			<div className="meta-item meta-item--pro">
+																				<span className="icon-badge" aria-hidden>
+																					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 4 4 4-8"/></svg>
+																				</span>
+																				<div className="flex-1 min-w-0">
+																					<div className="k">Logit</div>
+																					<div className="v v-mono">{(result as any).logit}</div>
+																				</div>
+																				<button className="icon-ghost" title="Copier" onClick={() => copyToClipboard(String((result as any).logit))}>
+																					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+																				</button>
+																			</div>
+																		)}
 																	</div>
 																</div>
 															</div>
@@ -529,12 +564,60 @@ export default function PredictionPage() {
 															<pre className="mt-2 text-xs overflow-auto">{JSON.stringify(result, null, 2)}</pre>
 														</details>
 
+														{/* Visuals intentionally removed: Grad‑CAM overlay/heatmap not displayed */}
+
 														<div className="mt-4 card">
 															<div className="font-semibold">Conseils & Explications</div>
 															<ul className="note-list text-sm">
 																<li>Ce résultat est un indicateur, pas un diagnostic médical.</li>
 																<li>Si la confiance est faible (&lt; 70%), refaites une photo nette et bien éclairée.</li>
 																<li>En cas de doute clinique, consultez un dermatologue.</li>
+																{(result as any)?.llm_explanation && (() => {
+																	const { explanation, key_advice, confidence_level, risk_level } = extractLLMFields((result as any).llm_explanation);
+																	if (!explanation && !key_advice) return null;
+																	return (
+																		<li className="mt-4">
+																			<div className="rounded-xl border border-black/5 bg-linear-to-br from-white to-slate-50 p-4 shadow-sm">
+																				<div className="flex items-start gap-3">
+																					<span className="icon-badge badge-secondary" aria-hidden>
+																						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l7 4v6c0 5-3.5 9-7 10-3.5-1-7-5-7-10V6l7-4z"/><path d="M9 12l2 2 4-4"/></svg>
+																					</span>
+																					<div className="flex-1 min-w-0 space-y-3">
+																						{explanation && (
+																							<div>
+																								<div className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Mon Analyse</div>
+																								<p className="mt-1 text-sm leading-relaxed text-slate-700 whitespace-pre-line">{explanation}</p>
+																							</div>
+																						)}
+																						{(confidence_level || risk_level) && (
+																							<div className="grid sm:grid-cols-2 gap-3">
+																								{confidence_level && (
+																									<div className="p-3 rounded-lg border border-black/5 bg-white">
+																										<div className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Ma Confiance</div>
+																										<div className="mt-1 text-sm font-medium text-slate-800">{confidence_level}</div>
+																									</div>
+																								)}
+																								{risk_level && (
+																									<div className="p-3 rounded-lg border border-black/5 bg-white">
+																										<div className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Niveau de Risque</div>
+																										<div className="mt-1 text-sm font-medium text-slate-800">{risk_level}</div>
+																									</div>
+																								)}
+																							</div>
+																						)}
+																						{key_advice && (
+																							<div className="pt-2 border-t border-slate-200">
+																								<div className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Conseils Pratiques</div>
+																								<p className="mt-1 text-sm italic text-slate-800 whitespace-pre-line">{key_advice}</p>
+																								<div className="mt-2 flex gap-2"> Prenez soin de vous </div>
+																							</div>
+																						)}
+																					</div>
+																				</div>
+																			</div>
+																		</li>
+																	);
+																})()}
 															</ul>
 														</div>
 													</div>
